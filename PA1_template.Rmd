@@ -1,0 +1,143 @@
+---
+title: "Reproducible Research course - Assignment 1"
+author: "Jakub Tomaszewski"
+date: "Friday, July 18, 2014"
+output: html_document
+---
+
+```{r, echo=TRUE}
+
+```
+
+This is my Assignment 1 report in the Reproducible Research course on Coursera.
+
+Loading of the dataset into R workspace. Data source: https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip.
+```{r, echo=TRUE}
+library(data.table)
+dataset <- read.csv("activity.csv")
+```
+
+Conversion of dataset to data.table type to increase the speed of processing:
+
+```{r, echo=TRUE}
+dataset <- data.table(dataset)
+dataset$date <- as.POSIXct(dataset$date)
+dataset$steps <- as.numeric(dataset$steps)
+setkey(dataset,date)
+sum_of_steps <- dataset[,list(steps=sum(steps)),by=list(date)]
+print(head(sum_of_steps))
+```
+
+Histogram of the total number of steps taken per day:
+
+```{r, echo=TRUE}
+hist(sum_of_steps$steps,main="Total number of steps taken per day",
+     xlab="Total number of steps",breaks=10)
+```
+
+Mean and median total number of steps taken per day:
+
+```{r, echo=TRUE}
+mean_of_steps <- mean(sum_of_steps$steps,na.rm=TRUE)
+print(mean_of_steps)
+```
+
+```{r, echo=TRUE}
+median_of_steps <- median(sum_of_steps$steps,na.rm=TRUE)
+print(median_of_steps)
+```
+Time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days:
+
+```{r, echo=TRUE}
+means_of_steps_by_intervals <- dataset[,list(steps=mean(steps,na.rm=TRUE)),by=list(interval)]
+plot(x=means_of_steps_by_intervals$interval,y=means_of_steps_by_intervals$steps,
+     type="l",xlab="5-minute interval",ylab="Averaged number of steps",
+     main="Plot of the number of steps in 5-minute intervals averaged by days")
+grid()
+```
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r, echo=TRUE}
+maximum_number_of_steps <- means_of_steps_by_intervals[which.max(steps)]
+print(maximum_number_of_steps)
+```
+
+Imputation of missing values
+
+Number of missing values:
+
+```{r, echo=TRUE}
+number_of_missing <- sum(is.na(dataset$steps))
+print(number_of_missing)
+```
+
+Filling of missing values by the average number of steps in the given day:
+
+```{r, echo=TRUE}
+dataset_imputed <- dataset # Creating a local copy of dataset for imputation
+intervals <- unique(dataset$interval) # Vector of unique dates in the dataset
+for(i in 1:length(intervals)){
+    tmp <- dataset_imputed[interval==intervals[i]]$steps
+    dataset_imputed[interval==intervals[i]]$steps <- replace(tmp,is.na(tmp),mean(tmp,na.rm=TRUE)) 
+}
+```
+
+Histogram of the total number of steps taken per day (after imputation)
+
+Comparison with distribution of total number of steps in non-imputed dataset:
+
+```{r, echo=TRUE}
+sum_of_steps_imputed <- dataset_imputed[,list(steps=sum(steps)),by=list(date)]
+par(mfrow=c(1,2))
+hist(sum_of_steps$steps,main="Total number of steps taken\n per day",
+     xlab="Total number of steps",breaks=10)
+hist(sum_of_steps_imputed$steps,main="Total number of steps taken\n per day\n (after imputation by intervals)",
+     xlab="Total number of steps",breaks=10)
+```
+
+Mean and median total number of steps taken per day (after imputation):
+
+```{r, echo=TRUE}
+mean_of_steps_imputed <- mean(sum_of_steps_imputed$steps,na.rm=TRUE)
+print(mean_of_steps_imputed)
+```
+
+```{r, echo=TRUE}
+median_of_steps_imputed <- median(sum_of_steps_imputed$steps,na.rm=TRUE)
+print(median_of_steps_imputed)
+```
+
+As we see, distribution of the data filled by the average number of steps in the given day is different in comparison to the raw data. Imputation caused that the mean and median values of total number of steps taken per day are equal (because there was so many missing values replaced by the mean).
+
+Weekdays factor variable creation:
+
+```{r, echo=TRUE}
+weekday <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
+            "Friday", "Saturday")[as.POSIXlt(dataset_imputed$date)$wday + 1]
+dataset_imputed$weektime <- ifelse(weekday %in% c("Saturday","Sunday"),"weekend","weekday")
+head(dataset_imputed)
+```
+
+Mean and median total number of steps taken per day (after imputation) by weekday/weekend:
+
+```{r, echo=TRUE}
+sum_of_steps_imputed_by_weektime <- dataset_imputed[,list(steps=sum(steps)),by=list(weektime,date)]
+means_of_steps_imputed_by_weektime <- sum_of_steps_imputed_by_weektime[,list(steps=mean(steps)),by=list(weektime)]
+print(means_of_steps_imputed_by_weektime)
+```
+
+```{r, echo=TRUE}
+medians_of_steps_imputed_by_weektime <- sum_of_steps_imputed_by_weektime[,list(steps=median(steps)),by=list(weektime)]
+print(medians_of_steps_imputed_by_weektime)
+```
+
+Time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (for imputed data):
+
+```{r, echo=TRUE}
+means_of_steps_by_intervals_imputed <- dataset_imputed[,list(steps=mean(steps,na.rm=TRUE)),by=list(weektime,interval)]
+library(lattice)
+xyplot(steps~interval|weektime,data=means_of_steps_by_intervals_imputed, type="l")
+```
+
+
